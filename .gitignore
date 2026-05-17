@@ -1,0 +1,29 @@
+# Dependencies - never commit these
+node_modules/
+
+# Environment variables - NEVER commit real secrets
+.env
+
+# Logs
+*.log
+server.log
+
+# Uploaded user files
+uploads/
+
+# Database backups with real user data
+backups/
+
+# Debug and scratch scripts (optional - you can commit if you want)
+debug_login.js
+scratch/
+
+# Test artifacts
+modules/student/test.pdf
+modules/student/test.sh
+modules/student/test2.sh
+modules/student/studentProfile.controller.mjs.backup
+
+# OS files
+.DS_Store
+Thumbs.db
