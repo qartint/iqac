@@ -136,29 +136,7 @@ async function calculateMetric(metricId) {
             );
 
     break;
-    case "percentage":
-
-    const totalFaculty =
-        await Faculty.countDocuments();
-
-    const matchingFaculty =
-        await Faculty.countDocuments({
-            [metric.numeratorField]: {
-                $exists: true,
-                $ne: []
-            }
-        });
-
-    value =
-        totalFaculty === 0
-            ? 0
-            : Number(
-                (
-                    (matchingFaculty / totalFaculty) * 100
-                ).toFixed(2)
-            );
-
-    break;
+    
             default:
                 value = 0;
         }
