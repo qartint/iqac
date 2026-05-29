@@ -136,7 +136,35 @@ async function calculateMetric(metricId) {
             );
 
     break;
-    
+    case "ratio":
+
+    const numeratorMetric =
+        await calculateMetric(
+            metric.numeratorMetric
+        );
+
+    const denominatorMetric =
+        await calculateMetric(
+            metric.denominatorMetric
+        );
+
+    value =
+        denominatorMetric?.value > 0
+            ? Number(
+                (
+                    numeratorMetric.value /
+                    denominatorMetric.value
+                ).toFixed(2)
+            )
+            : 0;
+
+    break;
+    case "facultyCount":
+
+    value =
+        await Faculty.countDocuments();
+
+    break;
             default:
                 value = 0;
         }
