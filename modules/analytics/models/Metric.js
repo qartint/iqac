@@ -46,6 +46,22 @@ const MetricSchema = new mongoose.Schema(
     formulaType: {
         type: String
    },
+   conditionField: {
+    type: String
+},
+
+conditionValue: {
+    type: String
+},
+distinctField: {
+    type: String
+},
+numeratorField: {
+    type: String
+},
+numeratorField: {
+    type: String
+},
     missingFields: [{
         type: String
     }]
