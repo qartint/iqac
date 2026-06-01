@@ -1,5 +1,7 @@
 const Metric = require("../models/Metric");
 const Faculty = require("../../../models/Faculty");
+const StudentProfile =
+require("../../../modules/student/models/StudentProfile");
 
 async function calculateMetric(metricId) {
 
@@ -17,7 +19,7 @@ async function calculateMetric(metricId) {
 
     let value = 0;
 
-    if (metric.collection === "faculties") {
+     {
 
         switch (metric.formulaType) {
 
@@ -165,6 +167,60 @@ async function calculateMetric(metricId) {
         await Faculty.countDocuments();
 
     break;
+    case "studentCount":
+    
+        value =
+            await StudentProfile.countDocuments();
+    
+            console.log("DB:", StudentProfile.db.name);
+            console.log("Collection:", StudentProfile.collection.name);
+            console.log("Count:", await StudentProfile.countDocuments());    
+    
+        break;
+        case "studentConditionalCount":
+
+    value =
+        await StudentProfile.countDocuments({
+            [metric.fieldName]:
+                metric.fieldValue
+        });
+
+    break;
+    case "studentExists":
+
+    value =
+        await StudentProfile.countDocuments({
+            [metric.fieldName]: {
+                $exists: true,
+                $ne: ""
+            }
+        });
+
+    break;
+    case "metricPercentage":
+
+    const numerator =
+        await calculateMetric(
+            metric.numeratorMetric
+        );
+
+    const denominator =
+        await calculateMetric(
+            metric.denominatorMetric
+        );
+
+    value =
+        denominator?.value > 0
+            ? Number(
+                (
+                    numerator.value /
+                    denominator.value * 100
+                ).toFixed(2)
+            )
+            : 0;
+
+    break;
+
             default:
                 value = 0;
         }
