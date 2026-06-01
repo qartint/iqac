@@ -2,8 +2,13 @@ const express = require("express");
 const Metric = require("../modules/analytics/models/Metric");
 const Faculty = require("../models/Faculty");
 const {
-    calculateMetric
+    calculateMetric,
+    getStudentProfileCompletion,
+    getStudentProfileSummary,
+    getStudentDepartments,
+    getProgramLevels
 } = require("../modules/analytics/services/analyticsService");
+
 console.log("Metric =", Metric);
 
 console.log("Metric type:", typeof Metric);
@@ -391,4 +396,90 @@ router.get("/department-performance", async (req, res) => {
     }
 
 });
+router.get(
+    "/student-profile-completion",
+    async (req, res) => {
+
+        try {
+
+            const result =
+                await getStudentProfileCompletion();
+
+            res.json(result);
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).json({
+                message: error.message
+            });
+
+        }
+    }
+);
+router.get(
+    "/student-profile-summary",
+    async (req, res) => {
+
+        try {
+
+            const result =
+                await getStudentProfileSummary();
+
+            res.json(result);
+
+        } catch (error) {
+
+            res.status(500).json({
+                message: error.message
+            });
+
+        }
+    }
+);
+router.get(
+    "/student-departments",
+    async (req, res) => {
+
+        try {
+
+            const result =
+                await getStudentDepartments();
+
+            res.json(result);
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).json({
+                message: error.message
+            });
+
+        }
+    }
+);
+router.get(
+    "/program-levels",
+    async (req, res) => {
+
+        try {
+
+            const result =
+                await getProgramLevels();
+
+            res.json(result);
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).json({
+                message: error.message
+            });
+
+        }
+    }
+);
 module.exports = router;

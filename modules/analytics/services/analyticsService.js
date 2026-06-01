@@ -232,7 +232,168 @@ async function calculateMetric(metricId) {
         value
     };
 }
+async function getStudentProfileCompletion() {
 
+    const students =
+        await StudentProfile.find().lean();
+
+    const results = [];
+
+    for (const student of students) {
+
+        let filled = 0;
+        let total = 0;
+
+        function countFields(obj) {
+
+            for (const key in obj) {
+
+                const value = obj[key];
+
+                if (
+                    value &&
+                    typeof value === "object" &&
+                    !Array.isArray(value)
+                ) {
+
+                    countFields(value);
+
+                } else {
+
+                    total++;
+
+                    if (
+                        value !== undefined &&
+                        value !== null &&
+                        value !== ""
+                    ) {
+                        filled++;
+                    }
+                }
+            }
+        }
+
+        countFields(student);
+
+        const completion =
+            total > 0
+                ? Number(
+                    (
+                        filled /
+                        total * 100
+                    ).toFixed(2)
+                )
+                : 0;
+
+        results.push({
+
+            student:
+                student.personal_details?.fullName ||
+                "Unknown",
+
+            completion
+        });
+    }
+
+    return results;
+}
+async function getStudentProfileSummary() {
+
+    const profiles =
+        await getStudentProfileCompletion();
+
+    const totalStudents =
+        profiles.length;
+
+    const averageCompletion =
+        totalStudents > 0
+            ? Number(
+                (
+                    profiles.reduce(
+                        (sum, p) =>
+                            sum + p.completion,
+                        0
+                    ) / totalStudents
+                ).toFixed(2)
+            )
+            : 0;
+
+    const completeProfiles =
+        profiles.filter(
+            p => p.completion >= 80
+        ).length;
+
+    const incompleteProfiles =
+        totalStudents -
+        completeProfiles;
+
+    return {
+        totalStudents,
+        averageCompletion,
+        completeProfiles,
+        incompleteProfiles
+    };
+}
+async function getStudentDepartments() {
+
+    const students =
+        await StudentProfile.find().lean();
+
+    const departments = {};
+
+    students.forEach(student => {
+
+        const department =
+            student.academic_details?.faculty ||
+            "Unknown";
+
+        if (!departments[department]) {
+
+            departments[department] = {
+                department,
+                students: 0
+            };
+
+        }
+
+        departments[department].students++;
+
+    });
+
+    return Object.values(departments);
+}
+async function getProgramLevels() {
+
+    const students =
+        await StudentProfile.find().lean();
+
+    const levels = {};
+
+    students.forEach(student => {
+
+        const level =
+            student.academic_details?.programLevel ||
+            "Unknown";
+
+        if (!levels[level]) {
+
+            levels[level] = {
+                programLevel: level,
+                students: 0
+            };
+
+        }
+
+        levels[level].students++;
+
+    });
+
+    return Object.values(levels);
+}
 module.exports = {
-    calculateMetric
+    calculateMetric,
+    getStudentProfileCompletion,
+    getStudentProfileSummary,
+    getStudentDepartments,
+    getProgramLevels
 };
