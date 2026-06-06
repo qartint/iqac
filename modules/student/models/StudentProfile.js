@@ -460,4 +460,4 @@ const studentProfileSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("StudentProfile", studentProfileSchema);
+module.exports = mongoose.model("studentprofiles", studentProfileSchema);
