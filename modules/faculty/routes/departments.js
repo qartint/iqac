@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const Department = require('../models/Department');
 const User = require('../../../auth/models/User.model');
 const Faculty = require('../models/Faculty');
+const StudentProfile = require('../../student/models/StudentProfile');
 const { auth, adminOrVc } = require('../middleware/auth');
 
 const router = express.Router();
@@ -12,10 +13,41 @@ router.use(auth);
 router.get('/', async (req, res) => {
   try {
     const departments = await Department.find()
-      .populate('hod', 'username email')
+      .populate('hod', 'username email name')
       .sort({ name: 1 });
-    res.json(departments);
+      
+    const deptNames = departments.map(d => d.name);
+    
+    // Count faculty profiles
+    const facultyProfiles = await Faculty.find({ 'employmentDetails.department': { $in: deptNames } }).select('employmentDetails.department');
+    const facultyCountMap = {};
+    facultyProfiles.forEach(p => {
+      const dept = p.employmentDetails?.department;
+      if (dept) {
+        facultyCountMap[dept] = (facultyCountMap[dept] || 0) + 1;
+      }
+    });
+
+    // Count students
+    const studentProfiles = await StudentProfile.find({ 'academic_details.department': { $in: deptNames } }).select('academic_details.department');
+    const studentCountMap = {};
+    studentProfiles.forEach(s => {
+      const dept = s.academic_details?.department;
+      if (dept) {
+        studentCountMap[dept] = (studentCountMap[dept] || 0) + 1;
+      }
+    });
+
+    const enriched = departments.map(d => {
+      const obj = d.toObject();
+      obj.facultyCount = facultyCountMap[d.name] || 0;
+      obj.studentCount = studentCountMap[d.name] || 0;
+      return obj;
+    });
+
+    res.json(enriched);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -102,6 +134,65 @@ router.post('/', adminOrVc, async (req, res) => {
       department,
       hodUser: { id: hodUser._id, username: hodUser.username, email: hodUser.email },
       defaultPassword: 'password123',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// DELETE /api/departments/:id
+router.delete('/:id', adminOrVc, async (req, res) => {
+  try {
+    const dept = await Department.findByIdAndDelete(req.params.id);
+    if (!dept) return res.status(404).json({ message: 'Department not found' });
+    res.json({ message: 'Department deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/departments/:name/overview
+router.get('/:name/overview', async (req, res) => {
+  try {
+    const departmentName = req.params.name;
+    const department = await Department.findOne({ name: departmentName }).populate('hod', 'username email name');
+    
+    if (!department) return res.status(404).json({ message: 'Department not found' });
+    
+    const profiles = await Faculty.find({ 'employmentDetails.department': departmentName })
+      .select('userId personalInfo.fullName personalInfo.designation employmentDetails.designation profileComplete completionPercentage publications projects subjects');
+      
+    const userIds = profiles.map(p => p.userId);
+    const users = await User.find({ _id: { $in: userIds }, role: { $in: ['faculty', 'hod'] } });
+    const students = await StudentProfile.countDocuments({ 'academic_details.department': departmentName });
+
+    let totalPublications = 0;
+    let totalProjects = 0;
+    
+    const facultyMembers = profiles.map(p => {
+      totalPublications += p.publications ? p.publications.length : 0;
+      totalProjects += p.projects ? p.projects.length : 0;
+      
+      const user = users.find(u => u._id.toString() === p.userId.toString());
+      return {
+        name: p.personalInfo?.fullName || user?.username || 'Unknown',
+        designation: p.employmentDetails?.designation || p.personalInfo?.designation || 'Faculty',
+        completionPercentage: p.completionPercentage || 0
+      };
+    });
+    
+    res.json({
+      name: department.name,
+      hodName: department.hod ? (department.hod.name || department.hod.username) : 'No HOD Assigned',
+      stats: {
+        facultyCount: facultyMembers.length,
+        studentCount: students,
+        totalPublications,
+        totalProjects,
+      },
+      facultyMembers
     });
   } catch (err) {
     console.error(err);

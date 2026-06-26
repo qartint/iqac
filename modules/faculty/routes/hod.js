@@ -1,9 +1,10 @@
-﻿const express = require('express');
+const express = require('express');
 const User = require('../../../auth/models/User.model');
 const Faculty = require('../models/Faculty');
 const OptionRequest = require('../models/OptionRequest');
 const Department = require('../models/Department');
 const { auth, hodOnly } = require('../middleware/auth');
+const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 router.use(auth, hodOnly);
@@ -59,13 +60,14 @@ router.post('/faculty', async (req, res) => {
       username = `${baseUsername}${counter++}`;
     }
 
+    const hashedPassword = await bcrypt.hash('password123', 12);
     const user = await User.create({
+      name: fullName || username,
       username,
       email: email.trim().toLowerCase(),
-      password: 'password123',
+      password: hashedPassword,
       role: 'faculty',
       isFirstLogin: true,
-      createdBy: req.user._id,
     });
 
     const adminFullName = fullName ? `temp--${fullName}` : '';
