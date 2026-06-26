@@ -1,7 +1,36 @@
-﻿const Metric = require("../models/Metric");
+const Metric = require("../models/Metric");
 const Faculty = require("../../faculty/models/Faculty");
-const StudentProfile =
-require("../../student/models/StudentProfile");
+const StudentProfile = require("../../student/models/StudentProfile");
+
+// Course Registration Models
+const StudentEnrollment = require("../../course-registration/enrollment/enrollment.model");
+const Course = require("../../course-registration/course/course.model");
+const Program = require("../../course-registration/program/program.model");
+const Preference = require("../../course-registration/preference/preference.model");
+const Allocation = require("../../course-registration/allocation/allocation.model");
+const Marks = require("../../course-registration/marks/marks.model");
+const CourseAssignment = require("../../course-registration/course-assignment/course-assignment.model");
+
+const MODEL_MAP = {
+    "faculties": Faculty,
+    "studentprofiles": StudentProfile,
+    "Faculty": Faculty,
+    "StudentProfile": StudentProfile,
+    "StudentEnrollment": StudentEnrollment,
+    "Course": Course,
+    "Program": Program,
+    "Preference": Preference,
+    "Allocation": Allocation,
+    "Marks": Marks,
+    "CourseAssignment": CourseAssignment,
+    "studentenrollments": StudentEnrollment,
+    "courses": Course,
+    "programs": Program,
+    "preferences": Preference,
+    "allocations": Allocation,
+    "marks": Marks,
+    "courseassignments": CourseAssignment
+};
 
 async function calculateMetric(metricId) {
 
@@ -17,127 +46,88 @@ async function calculateMetric(metricId) {
         return null;
     }
 
+    const Model = MODEL_MAP[metric.collection];
     let value = 0;
 
-     {
+    if (Model || metric.formulaType === "ratio" || metric.formulaType === "metricPercentage") {
 
         switch (metric.formulaType) {
 
             case "count":
-
-                const countRecords = await Faculty.find({
-                    [metric.fieldPath]: {
-                        $exists: true,
-                        $ne: []
-                    }
-                }).lean();
-
-                value = countRecords.reduce((total, faculty) => {
-
-                    const data = faculty[metric.fieldPath] || [];
-
-                    return total + data.length;
-
-                }, 0);
-
+                const countResult = await Model.aggregate([
+                    { $match: { [metric.fieldPath]: { $exists: true, $ne: [] } } },
+                    { $project: { count: { $size: `$${metric.fieldPath}` } } },
+                    { $group: { _id: null, total: { $sum: "$count" } } }
+                ]);
+                value = countResult.length > 0 ? countResult[0].total : 0;
                 break;
 
             case "sum":
+                const sumResult = await Model.aggregate([
+                    { $match: { [metric.fieldPath]: { $exists: true, $ne: [] } } },
+                    { $unwind: `$${metric.fieldPath}` },
+                    { $group: {
+                        _id: null,
+                        total: {
+                            $sum: {
+                                $convert: {
+                                    input: {
+                                        $replaceAll: {
+                                            input: { $toString: { $ifNull: [`$${metric.fieldPath}.${metric.sumField}`, "0"] } },
+                                            find: ",",
+                                            replacement: ""
+                                        }
+                                    },
+                                    to: "double",
+                                    onError: 0,
+                                    onNull: 0
+                                }
+                            }
+                        }
+                    }}
+                ]);
+                value = sumResult.length > 0 ? sumResult[0].total : 0;
+                break;
 
-                const sumRecords = await Faculty.find({
-                    [metric.fieldPath]: {
+            case "conditionalCount":
+                const condResult = await Model.aggregate([
+                    { $match: { [metric.fieldPath]: { $exists: true, $ne: [] } } },
+                    { $unwind: `$${metric.fieldPath}` },
+                    { $match: { [`${metric.fieldPath}.${metric.conditionField}`]: metric.conditionValue } },
+                    { $count: "matches" }
+                ]);
+                value = condResult.length > 0 ? condResult[0].matches : 0;
+                break;
+
+            case "objectSum":
+                const objSumResult = await Model.aggregate([
+                    { $group: {
+                        _id: null,
+                        total: {
+                            $sum: {
+                                $convert: {
+                                    input: { $ifNull: [`$${metric.fieldPath}.${metric.sumField}`, 0] },
+                                    to: "double",
+                                    onError: 0,
+                                    onNull: 0
+                                }
+                            }
+                        }
+                    }}
+                ]);
+                value = objSumResult.length > 0 ? objSumResult[0].total : 0;
+                break;
+
+            case "percentage":
+                const totalDocs = await Model.countDocuments();
+                const matchingDocs = await Model.countDocuments({
+                    [metric.numeratorField]: {
                         $exists: true,
                         $ne: []
                     }
-                }).lean();
-
-                value = sumRecords.reduce((total, faculty) => {
-
-                    const items = faculty[metric.fieldPath] || [];
-
-                    const subtotal = items.reduce((sum, item) => {
-
-                        const amount = Number(
-                            String(item[metric.sumField] || 0)
-                                .replace(/,/g, "")
-                        );
-
-                        return sum + amount;
-
-                    }, 0);
-
-                    return total + subtotal;
-
-                }, 0);
-
+                });
+                value = totalDocs === 0 ? 0 : Number((matchingDocs / totalDocs * 100).toFixed(2));
                 break;
-                case "conditionalCount":
-
-    const conditionalRecords = await Faculty.find({
-        [metric.fieldPath]: {
-            $exists: true,
-            $ne: []
-        }
-    }).lean();
-
-    value = conditionalRecords.reduce((total, faculty) => {
-
-        const items =
-            faculty[metric.fieldPath] || [];
-
-        const matches = items.filter(item =>
-
-            item[metric.conditionField] ===
-            metric.conditionValue
-
-        ).length;
-
-        return total + matches;
-
-    }, 0);
-
-    break;
-            case "objectSum":
-
-    const records = await Faculty.find().lean();
-
-    value = records.reduce((total, faculty) => {
-
-        const obj = faculty[metric.fieldPath] || {};
-
-        const amount = Number(
-            obj[metric.sumField] || 0
-        );
-
-        return total + amount;
-
-    }, 0);
-
-    break;
-    case "percentage":
-
-    const totalFaculty =
-        await Faculty.countDocuments();
-
-    const matchingFaculty =
-        await Faculty.countDocuments({
-            [metric.numeratorField]: {
-                $exists: true,
-                $ne: []
-            }
-        });
-
-    value =
-        totalFaculty === 0
-            ? 0
-            : Number(
-                (
-                    matchingFaculty /
-                    totalFaculty * 100
-                ).toFixed(2)
-            );
-
-    break;
     case "ratio":
 
     const numeratorMetric =
@@ -161,42 +151,28 @@ async function calculateMetric(metricId) {
             : 0;
 
     break;
-    case "facultyCount":
+            case "facultyCount":
+                value = await Model.countDocuments();
+                break;
 
-    value =
-        await Faculty.countDocuments();
+            case "studentCount":
+                value = await Model.countDocuments();
+                break;
 
-    break;
-    case "studentCount":
-    
-        value =
-            await StudentProfile.countDocuments();
-    
-            console.log("DB:", StudentProfile.db.name);
-            console.log("Collection:", StudentProfile.collection.name);
-            console.log("Count:", await StudentProfile.countDocuments());    
-    
-        break;
-        case "studentConditionalCount":
+            case "studentConditionalCount":
+                value = await Model.countDocuments({
+                    [metric.fieldName]: metric.fieldValue
+                });
+                break;
 
-    value =
-        await StudentProfile.countDocuments({
-            [metric.fieldName]:
-                metric.fieldValue
-        });
-
-    break;
-    case "studentExists":
-
-    value =
-        await StudentProfile.countDocuments({
-            [metric.fieldName]: {
-                $exists: true,
-                $ne: ""
-            }
-        });
-
-    break;
+            case "studentExists":
+                value = await Model.countDocuments({
+                    [metric.fieldName]: {
+                        $exists: true,
+                        $ne: ""
+                    }
+                });
+                break;
     case "metricPercentage":
 
     const numerator =
@@ -335,60 +311,41 @@ async function getStudentProfileSummary() {
     };
 }
 async function getStudentDepartments() {
-
-    const students =
-        await StudentProfile.find().lean();
-
-    const departments = {};
-
-    students.forEach(student => {
-
-        const department =
-            student.academic_details?.faculty ||
-            "Unknown";
-
-        if (!departments[department]) {
-
-            departments[department] = {
-                department,
-                students: 0
-            };
-
+    const result = await StudentProfile.aggregate([
+        {
+            $group: {
+                _id: { $ifNull: ["$academic_details.faculty", "Unknown"] },
+                students: { $sum: 1 }
+            }
+        },
+        {
+            $project: {
+                department: "$_id",
+                students: 1,
+                _id: 0
+            }
         }
-
-        departments[department].students++;
-
-    });
-
-    return Object.values(departments);
+    ]);
+    return result;
 }
+
 async function getProgramLevels() {
-
-    const students =
-        await StudentProfile.find().lean();
-
-    const levels = {};
-
-    students.forEach(student => {
-
-        const level =
-            student.academic_details?.programLevel ||
-            "Unknown";
-
-        if (!levels[level]) {
-
-            levels[level] = {
-                programLevel: level,
-                students: 0
-            };
-
+    const result = await StudentProfile.aggregate([
+        {
+            $group: {
+                _id: { $ifNull: ["$academic_details.programLevel", "Unknown"] },
+                students: { $sum: 1 }
+            }
+        },
+        {
+            $project: {
+                programLevel: "$_id",
+                students: 1,
+                _id: 0
+            }
         }
-
-        levels[level].students++;
-
-    });
-
-    return Object.values(levels);
+    ]);
+    return result;
 }
 module.exports = {
     calculateMetric,

@@ -1,22 +1,27 @@
 const express = require("express");
-const Metric = require("../../analytics/models/Metric");
+const Metric = require("../modules/analytics/models/Metric");
 const Faculty = require("../models/Faculty");
 
 // Course Registration Models
-const StudentEnrollment = require("../../course-registration/enrollment/enrollment.model");
-const Course = require("../../course-registration/course/course.model");
-const Program = require("../../course-registration/program/program.model");
-const Preference = require("../../course-registration/preference/preference.model");
-const Allocation = require("../../course-registration/allocation/allocation.model");
-const Marks = require("../../course-registration/marks/marks.model");
-const CourseAssignment = require("../../course-registration/course-assignment/course-assignment.model");
+const StudentEnrollment = require("../modules/course-registration/enrollment/enrollment.model");
+const Course = require("../modules/course-registration/course/course.model");
+const Program = require("../modules/course-registration/program/program.model");
+const Preference = require("../modules/course-registration/preference/preference.model");
+const Allocation = require("../modules/course-registration/allocation/allocation.model");
+const Marks = require("../modules/course-registration/marks/marks.model");
+const CourseAssignment = require("../modules/course-registration/course-assignment/course-assignment.model");
 const {
     calculateMetric,
     getStudentProfileCompletion,
     getStudentProfileSummary,
     getStudentDepartments,
     getProgramLevels
-} = require("../../analytics/services/analyticsService");
+} = require("../modules/analytics/services/analyticsService");
+
+console.log("Metric =", Metric);
+
+console.log("Metric type:", typeof Metric);
+console.log("Metric name:", Metric?.modelName);
 
 const router = express.Router();
 
